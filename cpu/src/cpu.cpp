@@ -7,15 +7,19 @@
 #include "cpu.hpp"
 #include <iostream>
 
-CPU::CPU() {
+CPU::CPU(Bus* bus) : bus(bus) {
     cycles = 0;
 }
 
 CPU::~CPU() = default;
 
-void CPU::init() {}
+void CPU::init() {
 
-void CPU::step() {}
+}
+
+void CPU::step() {
+
+}
 
 void CPU::fetch() {
     

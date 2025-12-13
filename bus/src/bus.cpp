@@ -5,7 +5,6 @@
 */
 
 #include "bus.hpp"
-#include <cassert>
 
 Bus::Bus() {};
 
@@ -30,10 +29,6 @@ void Bus::init() {
 }
 
 uint8_t Bus::read(uint32_t address) {
-    if (address > 0xffffffff) {
-        assert("[Bus] Cannot read from an invalid address");
-    }
-
     // --- KUSEG ---
     if (address < 0x200000) {
         return mainRAM[address];
@@ -55,10 +50,6 @@ uint8_t Bus::read(uint32_t address) {
 }
 
 void Bus::write(uint32_t address, uint8_t data) {
-    if (address > 0xffffffff) {
-        assert("[Bus] Cannot write to an invalid address");
-    }
-
     // --- KUSEG ---
     if (address < 0x200000) {
         mainRAM[address] = data;

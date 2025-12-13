@@ -16,21 +16,15 @@ int main() {
 #endif
 
 
-    std::cout << "[Main] Starting PS1..." << std::endl;
+    std::cout << "[Main] Starting PSX emulator..." << std::endl;
 
-    CPU cpu;
     Bus bus;
+    CPU cpu(&bus);
 
     bus.init();
-    
     bus.read(rand());
-    bus.write(rand(), rand());
 
-#ifdef DEBUG
-    cpu.dumpRegisters();
-#endif
-
-    std::cout << "[Main] Stopping PS1..." << std::endl;
+    std::cout << "[Main] Stopping PSX emulator..." << std::endl;
 
 #ifdef PROFILE
     auto end = std::chrono::high_resolution_clock::now();

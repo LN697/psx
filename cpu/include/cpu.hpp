@@ -7,14 +7,17 @@
 #pragma once
 
 #include "registers.hpp"
+#include "bus.hpp"
 
 class CPU {
     public:
-        CPU();
+        CPU(Bus* bus);
         ~CPU();
 
         void init();
         void step();
+
+        uint8_t read(uint32_t address);
 
         void fetch();
 
@@ -23,8 +26,11 @@ class CPU {
 #endif
 
     private:
+        Bus* bus = nullptr;
+
         Registers registers;
         int cycles;
+
         uint32_t instr;
         uint32_t pri_opcode, sec_opcode;
 };
