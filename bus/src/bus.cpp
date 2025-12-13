@@ -1,9 +1,47 @@
 #include "bus.hpp"
 #include <iostream>
 #include <cstring>
+#include <fstream>
 
 Bus::Bus() {}
 Bus::~Bus() = default;
+
+bool Bus::loadBIOS(const std::string& path) {
+    std::ifstream file(path, std::ios::binary | std::ios::ate);
+    
+    if (!file.is_open()) {
+        std::cerr << "[Bus] Failed to open BIOS file: " << path << std::endl;
+        return false;
+    }
+
+    std::streamsize size = file.tellg();
+    if (size == -1) {
+        std::cerr << "[Bus] Failed to determine file size." << std::endl;
+        return false;
+    }
+
+    file.seekg(0, std::ios::beg);
+
+    if (static_cast<size_t>(size) > biosROM.size()) {
+        std::cerr << "[Bus] BIOS file too large! Expected 512KB, got " << size << " bytes." << std::endl;
+        return false;
+    }
+
+    file.read(reinterpret_cast<char*>(biosROM.data()), size);
+
+    std::cout << "[Bus] Loaded BIOS: " << path << " (" << size << " bytes)" << std::endl;
+    return true;
+}
+
+void Bus::dumpMemoryRegion(uint32_t address, int range) {
+    for (int i = 0; i < range; ++i) {
+        if (i % 0xf == 0) {
+            std::cout << std::endl;
+        }
+        std::cout << "0x" << std::hex << read(address + i) << " ";
+    }
+    std::cout << std::endl;
+}
 
 void Bus::mapRegion(std::vector<uint8_t>& storage, uint32_t startAddr, size_t size) {
     size_t numPages = (size + PAGE_SIZE - 1) / PAGE_SIZE;

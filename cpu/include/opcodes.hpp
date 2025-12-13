@@ -10,4 +10,3 @@
 
 using InstructionHandler = void (*)(CPU&, uint32_t);
 InstructionHandler opcodes[64] = {};
-

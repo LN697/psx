@@ -20,23 +20,20 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    if (argc == 2) {
-        std::cout << "[Loader] No rom file supplied, running in BIOS mode" << std::endl;
-    }
-
     std::cout << "[Main] Starting PSX emulator..." << std::endl;
 
     Bus bus;
     CPU cpu(&bus);
 
     bus.init();
-    bus.write(0x0, 0xef);
-    bus.write(0x1, 0xbe);
-    bus.write(0x2, 0xad);
-    bus.write(0x3, 0xde);
+    
+    if (!bus.loadBIOS(argv[1])) {
+        return 1;
+    }
 
-    cpu.fetch();
-    cpu.decode();
+    bus.dumpMemoryRegion(0x1FC00000, 0xff);
+
+    cpu.step();
 
     std::cout << "[Main] Stopping PSX emulator..." << std::endl;
 
