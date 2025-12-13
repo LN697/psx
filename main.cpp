@@ -22,7 +22,7 @@ int main() {
     Bus bus;
 
     bus.init();
-    std::cout << "flag 1" << std::endl;
+    
     bus.read(rand());
     bus.write(rand(), rand());
 
