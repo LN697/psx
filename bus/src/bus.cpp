@@ -11,6 +11,7 @@ Bus::Bus() {};
 Bus::~Bus() = default;
 
 void Bus::init() {
+    // --- Reserve the memory ---
     mainRAM.reserve(2048 * 1024);
     expRegion1.reserve(8192 * 1024);
     scratchpad.reserve(1024);
@@ -19,6 +20,7 @@ void Bus::init() {
     expRegion3.reserve(2048);
     biosROM.reserve(512 * 1024);
 
+    // --- Resize the vectors ---
     mainRAM.resize(2048 * 1024, 0x0);
     expRegion1.resize(8192 * 1024, 0x0);
     scratchpad.resize(1024, 0x0);
@@ -47,6 +49,22 @@ uint8_t Bus::read(uint32_t address) {
     }
 
     return 0x0;
+}
+
+uint16_t Bus::read16(uint32_t address) {
+    uint16_t byte0 = read(address);
+    uint16_t byte1 = read(address + 1);
+
+    return byte0 | (byte1 << 8);
+}
+
+uint32_t Bus::read32(uint32_t address) {
+    uint32_t byte0 = read(address);
+    uint32_t byte1 = read(address + 1);
+    uint32_t byte2 = read(address + 2);
+    uint32_t byte3 = read(address + 3);
+
+    return byte0 | (byte1 << 8) | (byte2 << 16) | (byte3 << 24);
 }
 
 void Bus::write(uint32_t address, uint8_t data) {

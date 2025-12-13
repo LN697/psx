@@ -9,7 +9,7 @@
 #include "bus.hpp"
 #include "cpu.hpp"
 
-int main() {
+int main(int argc, char* argv[]) {
 #ifdef PROFILE
     auto start = std::chrono::high_resolution_clock::now();
     std::cout << "[Profiler] Profiler initialized" << std::endl;
@@ -22,7 +22,13 @@ int main() {
     CPU cpu(&bus);
 
     bus.init();
-    bus.read(rand());
+    bus.write(0x0, 0xef);
+    bus.write(0x1, 0xbe);
+    bus.write(0x2, 0xad);
+    bus.write(0x3, 0xde);
+
+    cpu.fetch();
+    cpu.decode();
 
     std::cout << "[Main] Stopping PSX emulator..." << std::endl;
 

@@ -20,6 +20,8 @@ class CPU {
         uint8_t read(uint32_t address);
 
         void fetch();
+        void decode();
+        void execute();
 
 #ifdef DEBUG
         void dumpRegisters();

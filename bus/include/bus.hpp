@@ -17,6 +17,8 @@ class Bus {
         void init();
 
         uint8_t read(uint32_t address);
+        uint16_t read16(uint32_t address);
+        uint32_t read32(uint32_t address);
         void write(uint32_t address, uint8_t data);
 
     private:

@@ -22,7 +22,19 @@ void CPU::step() {
 }
 
 void CPU::fetch() {
-    
+    instr = bus->read32(registers.pc);
+}
+
+void CPU::decode() {
+    pri_opcode = instr >> 26;
+    sec_opcode = instr & 0x3f;
+
+    std::cout << "Primary Opcode: 0x" << std::hex << pri_opcode << std::endl;
+    std::cout << "Secondary Opcode: 0x" << std::hex << sec_opcode << std::endl;
+}
+
+void CPU::execute() {
+
 }
 
 #ifdef DEBUG
