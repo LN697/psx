@@ -1,87 +1,90 @@
-/*
-    Description: Bus Implementation File
-    Author: LN697
-    Date: 13 December 2025
-*/
-
 #include "bus.hpp"
+#include <iostream>
+#include <cstring>
 
-Bus::Bus() {};
-
+Bus::Bus() {}
 Bus::~Bus() = default;
 
-void Bus::init() {
-    // --- Reserve the memory ---
-    mainRAM.reserve(2048 * 1024);
-    expRegion1.reserve(8192 * 1024);
-    scratchpad.reserve(1024);
-    io_ports.reserve(4 * 1024);
-    expRegion2.reserve(8 * 1024);
-    expRegion3.reserve(2048);
-    biosROM.reserve(512 * 1024);
+void Bus::mapRegion(std::vector<uint8_t>& storage, uint32_t startAddr, size_t size) {
+    size_t numPages = (size + PAGE_SIZE - 1) / PAGE_SIZE;
+    uint32_t startIndex = startAddr >> 16;
 
-    // --- Resize the vectors ---
-    mainRAM.resize(2048 * 1024, 0x0);
-    expRegion1.resize(8192 * 1024, 0x0);
-    scratchpad.resize(1024, 0x0);
-    io_ports.resize(4 * 1024, 0x0);
-    expRegion2.resize(8 * 1024, 0x0);
-    expRegion3.resize(2048, 0x0);
-    biosROM.resize(512 * 1024, 0x0);
+    for (size_t i = 0; i < numPages; i++) {
+        if (startIndex + i < PAGE_COUNT) {
+            memoryMap[startIndex + i] = &storage[i * PAGE_SIZE];
+        }
+    }
+}
+
+void Bus::init() {
+    mainRAM.resize(2 * 1024 * 1024);      // 2MB
+    expRegion1.resize(8 * 1024 * 1024);   // 8MB
+    scratchpad.resize(1024);              // 1KB (Special handling needed typically)
+    io_ports.resize(4 * 1024);            // 4KB
+    biosROM.resize(512 * 1024);           // 512KB
+
+    memoryMap.fill(nullptr);
+
+    // Map Physical RAM (KUSEG: 0x00000000)
+    mapRegion(mainRAM, 0x00000000, mainRAM.size());
+
+    // KSEG0 (0x80000000): Cached Mirror of RAM
+    mapRegion(mainRAM, 0x80000000, mainRAM.size());
+    
+    // KSEG1 (0xA0000000): Uncached Mirror of RAM
+    mapRegion(mainRAM, 0xA0000000, mainRAM.size());
+
+    // Map BIOS (0x1FC00000)
+    mapRegion(biosROM, 0x1FC00000, biosROM.size());
+    
+    // Note: IO Ports (0x1F80xxxx) are usually NOT mapped this way 
+    // because they require side-effects (hardware logic) on read/write.
+    // We leave those as nullptr in the map to trigger the fallback logic.
 }
 
 uint8_t Bus::read(uint32_t address) {
-    // --- KUSEG ---
-    if (address < 0x200000) {
-        return mainRAM[address];
-    } else if (address >= 0x1f000000 && address < 0x1f800000) {
-        return expRegion1[address];
-    } else if (address < 0x1f800400) {
-        return scratchpad[address];
-    } else if (address >= 0x1f801000 && address < 0x1f802000) {
-        return io_ports[address];
-    } else if (address < 0x1f804000) {
-        return expRegion2[address];
-    } else if (address >= 0x1fa00000 && address < 0x1fc00000) {
-        return expRegion3[address];
-    } else if (address < 0x1fc80000) {
-        return biosROM[address];
+    uint32_t page_index = address >> 16;
+    uint32_t offset = address & 0xFFFF;
+    
+    if (uint8_t* page = memoryMap[page_index]) {
+        return page[offset];
+    }
+    
+    if (address >= 0x1F801000 && address < 0x1F802000) {
+        return io_ports[address & 0xFFF]; 
     }
 
-    return 0x0;
-}
+    // ... other MMIO checks ...
 
-uint16_t Bus::read16(uint32_t address) {
-    uint16_t byte0 = read(address);
-    uint16_t byte1 = read(address + 1);
-
-    return byte0 | (byte1 << 8);
+    return 0xFF; // Open bus behavior usually returns garbage or 0
 }
 
 uint32_t Bus::read32(uint32_t address) {
-    uint32_t byte0 = read(address);
-    uint32_t byte1 = read(address + 1);
-    uint32_t byte2 = read(address + 2);
-    uint32_t byte3 = read(address + 3);
+    uint32_t page_index = address >> 16;
+    uint32_t offset = address & 0xFFFF;
 
-    return byte0 | (byte1 << 8) | (byte2 << 16) | (byte3 << 24);
+    if (uint8_t* page = memoryMap[page_index]) {
+        return *reinterpret_cast<uint32_t*>(&page[offset]);
+    }
+
+    return (uint32_t)read(address) | 
+           ((uint32_t)read(address + 1) << 8) | 
+           ((uint32_t)read(address + 2) << 16) | 
+           ((uint32_t)read(address + 3) << 24);
 }
 
 void Bus::write(uint32_t address, uint8_t data) {
-    // --- KUSEG ---
-    if (address < 0x200000) {
-        mainRAM[address] = data;
-    } else if (address >= 0x1f000000 && address < 0x1f800000) {
-        expRegion1[address] = data;
-    } else if (address < 0x1f800400) {
-        scratchpad[address] = data;
-    } else if (address >= 0x1f801000 && address < 0x1f802000) {
-        io_ports[address] = data;
-    } else if (address < 0x1f804000) {
-        expRegion2[address] = data;
-    } else if (address >= 0x1fa00000 && address < 0x1fc00000) {
-        expRegion3[address] = data;
-    } else if (address < 0x1fc80000) {
-        biosROM[address] = data;
+    uint32_t page_index = address >> 16;
+    uint32_t offset = address & 0xFFFF;
+
+    if (uint8_t* page = memoryMap[page_index]) {
+        page[offset] = data;
+        return;
+    }
+
+    if (address >= 0x1F801000 && address < 0x1F802000) {
+         io_ports[address & 0xFFF] = data;
+         // TODO: Trigger Hardware Side Effects here!
+         return;
     }
 }

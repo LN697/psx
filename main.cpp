@@ -15,6 +15,14 @@ int main(int argc, char* argv[]) {
     std::cout << "[Profiler] Profiler initialized" << std::endl;
 #endif
 
+    if (argc < 2) {
+        std::cerr << "Usage: "<< argv[0] << " <bios_file> <rom_file>" << std::endl;
+        return 1;
+    }
+
+    if (argc == 2) {
+        std::cout << "[Loader] No rom file supplied, running in BIOS mode" << std::endl;
+    }
 
     std::cout << "[Main] Starting PSX emulator..." << std::endl;
 

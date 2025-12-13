@@ -29,8 +29,8 @@ void CPU::decode() {
     pri_opcode = instr >> 26;
     sec_opcode = instr & 0x3f;
 
-    std::cout << "Primary Opcode: 0x" << std::hex << pri_opcode << std::endl;
-    std::cout << "Secondary Opcode: 0x" << std::hex << sec_opcode << std::endl;
+    std::cout << "[CPU::Decode]   Primary Opcode: 0x" << std::hex << pri_opcode << std::endl;
+    std::cout << "[CPU::Decode] Secondary Opcode: 0x" << std::hex << sec_opcode << std::endl;
 }
 
 void CPU::execute() {
