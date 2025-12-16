@@ -6,6 +6,7 @@
 
 #include "cpu.hpp"
 #include <iostream>
+#include <iomanip>
 
 CPU::CPU(Bus* bus) : bus(bus) {
     cycles = 0;
@@ -65,8 +66,8 @@ void CPU::decode() {
     pri_opcode = instr >> 26;
     sec_opcode = instr & 0x3f;
 
-    std::cout << "[CPU::Decode]   Primary Opcode: 0x" << std::hex << pri_opcode << std::endl;
-    std::cout << "[CPU::Decode] Secondary Opcode: 0x" << std::hex << sec_opcode << std::endl;
+    std::cout << "[CPU::Decode]   Primary Opcode: 0x" << std::hex << std::setfill('0') << std::setw(2) << (int)pri_opcode << std::endl;
+    std::cout << "[CPU::Decode] Secondary Opcode: 0x" << std::hex << std::setfill('0') << std::setw(2) << (int)sec_opcode << std::endl;
 }
 
 void CPU::execute() {

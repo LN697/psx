@@ -2,6 +2,7 @@
 #include <iostream>
 #include <cstring>
 #include <fstream>
+#include <iomanip>
 
 Bus::Bus() {}
 Bus::~Bus() = default;
@@ -29,16 +30,18 @@ bool Bus::loadBIOS(const std::string& path) {
 
     file.read(reinterpret_cast<char*>(biosROM.data()), size);
 
-    std::cout << "[Bus] Loaded BIOS: " << path << " (" << size << " bytes)" << std::endl;
     return true;
 }
 
 void Bus::dumpMemoryRegion(uint32_t address, int range) {
-    for (int i = 0; i < range; ++i) {
-        if (i % 0xf == 0) {
+    for (int i = 0; i < range + 1; ++i) {
+        if (i % 0x10 == 0 && i != 0) {
             std::cout << std::endl;
         }
-        std::cout << "0x" << std::hex << read(address + i) << " ";
+        
+        uint8_t value = read(address + i);
+
+        std::cout << "0x" << std::hex << std::setfill('0') << std::setw(2) << (int)value << " ";
     }
     std::cout << std::endl;
 }
@@ -70,10 +73,12 @@ void Bus::init() {
     mapRegion(mainRAM, 0x80000000, mainRAM.size());
     
     // KSEG1 (0xA0000000): Uncached Mirror of RAM
-    mapRegion(mainRAM, 0xA0000000, mainRAM.size());
+    mapRegion(mainRAM, 0xa0000000, mainRAM.size());
 
     // Map BIOS (0x1FC00000)
-    mapRegion(biosROM, 0x1FC00000, biosROM.size());
+    mapRegion(biosROM, 0x1fc00000, biosROM.size());
+    mapRegion(biosROM, 0x9fc00000, biosROM.size());
+    mapRegion(biosROM, 0xbfc00000, biosROM.size());    
     
     // Note: IO Ports (0x1F80xxxx) are usually NOT mapped this way 
     // because they require side-effects (hardware logic) on read/write.

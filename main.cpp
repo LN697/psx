@@ -20,7 +20,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::cout << "[Main] Starting PSX emulator..." << std::endl;
+    std::cout << "[Main] Starting PS1 emulator..." << std::endl;
 
     Bus bus;
     CPU cpu(&bus);
@@ -31,11 +31,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    bus.dumpMemoryRegion(0x1FC00000, 0xff);
+    bus.dumpMemoryRegion(0xBFC00000, 0xff);
+
+    cpu.init();
 
     cpu.step();
 
-    std::cout << "[Main] Stopping PSX emulator..." << std::endl;
+    std::cout << "[Main] Stopping PS1 emulator..." << std::endl;
 
 #ifdef PROFILE
     auto end = std::chrono::high_resolution_clock::now();
