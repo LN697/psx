@@ -23,11 +23,11 @@ static void init_opcodes(CPU& cpu) {
     cpu.pri_table[0x02] = &j;
     // cpu.pri_table[0x03] = &jal;
     // cpu.pri_table[0x04] = &beq;
-    // cpu.pri_table[0x05] = &bne;
+    cpu.pri_table[0x05] = &bne;
     // cpu.pri_table[0x06] = &blez;
     // cpu.pri_table[0x07] = &bgtz;
 
-    // cpu.pri_table[0x08] = &addi;
+    cpu.pri_table[0x08] = &addi;
     cpu.pri_table[0x09] = &addiu;
     // cpu.pri_table[0x0A] = &slti;
     // cpu.pri_table[0x0B] = &sltiu;
@@ -44,7 +44,7 @@ static void init_opcodes(CPU& cpu) {
     // cpu.pri_table[0x20] = &lb;
     // cpu.pri_table[0x21] = &lh;
     // cpu.pri_table[0x22] = &lwl;
-    // cpu.pri_table[0x23] = &lw;
+    cpu.pri_table[0x23] = &lw;
     // cpu.pri_table[0x24] = &lbu;
     // cpu.pri_table[0x25] = &lhu;
     // cpu.pri_table[0x26] = &lwr;
@@ -89,5 +89,5 @@ static void init_opcodes(CPU& cpu) {
     // cpu.sec_table[0x27] = &nor;
 
     // cpu.sec_table[0x2A] = &slt;
-    // cpu.sec_table[0x2B] = &sltu;
+    cpu.sec_table[0x2B] = &sltu;
 }

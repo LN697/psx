@@ -76,8 +76,8 @@ namespace Instructions {
     static void bcondz(CPU& cpu) {
         uint32_t rt = OP_RT(cpu.instr);
         uint32_t rs_val = get_reg(cpu, OP_RS(cpu.instr));
-        bool link = (rt & 0x1E) == 0x10; // BLTZAL, BGEZAL have bits 1000x
-        bool ge = (rt & 0x01);           // BGEZ, BGEZAL have bit 00001
+        bool link = (rt & 0x1E) == 0x10;    // BLTZAL, BGEZAL have bits 1000x
+        bool ge = (rt & 0x01);              // BGEZ, BGEZAL have bit 00001
 
         bool condition = ge ? ((int32_t)rs_val >= 0) : ((int32_t)rs_val < 0);
 
@@ -156,6 +156,56 @@ namespace Instructions {
         uint32_t addr = base + offset;
         uint32_t val = get_reg(cpu, OP_RT(cpu.instr));
         cpu.write32(addr, val);
+    }
+
+    // 0x10: COP0
+    static void cop0(CPU& cpu) {
+        uint32_t rs = OP_RS(cpu.instr); // Operation type
+        uint32_t rd = OP_RD(cpu.instr); // Destination COP0 register
+        uint32_t rt = OP_RT(cpu.instr); // Source/Dest CPU register
+
+        switch (rs) {
+            case 0x00: // MFC0 (Move From Cop0): rt = cop0[rd]
+                // We implement the critical registers for BIOS booting
+                switch (rd) {
+                    case 12: set_reg(cpu, rt, cpu.registers.sr); break;
+                    case 13: set_reg(cpu, rt, cpu.registers.cause); break;
+                    case 14: set_reg(cpu, rt, cpu.registers.epc); break;
+                    default: 
+                        // Fallback for unhandled registers
+                        set_reg(cpu, rt, 0); 
+                        break;
+                }
+                break;
+
+            case 0x04: // MTC0 (Move To Cop0): cop0[rd] = rt
+                {
+                    uint32_t val = get_reg(cpu, rt);
+                    switch (rd) {
+                        case 12: cpu.registers.sr = val; break;
+                        case 13: cpu.registers.cause = val; break;
+                        // EPC is usually read-only for software, but writable by hardware
+                        case 14: cpu.registers.epc = val; break; 
+                        default: break;
+                    }
+                }
+                break;
+
+            default:
+                std::cerr << "[CPU] Unhandled COP0 instruction: 0x" << std::hex << cpu.instr << std::endl;
+                break;
+        }
+    }
+
+    // 0x05: BNE
+    static void bne(CPU& cpu) {
+        uint32_t s = get_reg(cpu, OP_RS(cpu.instr));
+        uint32_t t = get_reg(cpu, OP_RT(cpu.instr));
+        uint32_t offset = sign_extend(OP_IMM16(cpu.instr)) << 2;
+
+        if (s != t) {
+            cpu.next_pc = cpu.registers.pc + 4 + offset;
+        }
     }
 
     // --- Secondary Function Logic ---

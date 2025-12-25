@@ -15,10 +15,10 @@ CPU::CPU(Bus* bus) : bus(bus) {
 CPU::~CPU() = default;
 
 void CPU::init() {
-    for (int i = 0; i < 33; ++i) {
-        (&registers.at)[i] = 0;
-    }
-    registers.pc = 0xbfc00000;
+    // for (int i = 0; i < 33; ++i) {
+    //     (&registers.at)[i] = 0;
+    // }
+    // registers.pc = 0xbfc00000;
     next_pc = registers.pc + 4;
 }
 
