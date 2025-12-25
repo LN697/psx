@@ -34,14 +34,15 @@ bool Bus::loadBIOS(const std::string& path) {
 }
 
 void Bus::dumpMemoryRegion(uint32_t address, int range) {
-    for (int i = 0; i < range + 1; ++i) {
-        if (i % 0x10 == 0 && i != 0) {
-            std::cout << std::endl;
+    std::cout << "[Memory Dump] Address: 0x" << std::hex << address << " Range: " << std::dec << range << std::endl;
+    for (int i = 0; i < range; ++i) {
+        if (i % 0x10 == 0) {
+            if (i != 0) std::cout << std::endl;
+            std::cout << "0x" << std::hex << std::setfill('0') << std::setw(8) << (address + i) << ": ";
         }
         
         uint8_t value = read(address + i);
-
-        std::cout << "0x" << std::hex << std::setfill('0') << std::setw(2) << (int)value << " ";
+        std::cout << std::hex << std::setfill('0') << std::setw(2) << (int)value << " ";
     }
     std::cout << std::endl;
 }
@@ -60,7 +61,7 @@ void Bus::mapRegion(std::vector<uint8_t>& storage, uint32_t startAddr, size_t si
 void Bus::init() {
     mainRAM.resize(2 * 1024 * 1024);      // 2MB
     expRegion1.resize(8 * 1024 * 1024);   // 8MB
-    scratchpad.resize(1024);              // 1KB (Special handling needed typically)
+    scratchpad.resize(1024);              // 1KB
     io_ports.resize(4 * 1024);            // 4KB
     biosROM.resize(512 * 1024);           // 512KB
 
@@ -79,15 +80,11 @@ void Bus::init() {
     mapRegion(biosROM, 0x1fc00000, biosROM.size());
     mapRegion(biosROM, 0x9fc00000, biosROM.size());
     mapRegion(biosROM, 0xbfc00000, biosROM.size());    
-    
-    // Note: IO Ports (0x1F80xxxx) are usually NOT mapped this way 
-    // because they require side-effects (hardware logic) on read/write.
-    // We leave those as nullptr in the map to trigger the fallback logic.
 }
 
 uint8_t Bus::read(uint32_t address) {
-    uint32_t page_index = address >> 16;
-    uint32_t offset = address & 0xFFFF;
+    page_index = address >> 16;
+    offset = address & 0xFFFF;
     
     if (uint8_t* page = memoryMap[page_index]) {
         return page[offset];
@@ -97,19 +94,21 @@ uint8_t Bus::read(uint32_t address) {
         return io_ports[address & 0xFFF]; 
     }
 
-    // ... other MMIO checks ...
-
-    return 0xFF; // Open bus behavior usually returns garbage or 0
+    // Open bus behavior or garbage
+    return 0x00; 
 }
 
 uint32_t Bus::read32(uint32_t address) {
-    uint32_t page_index = address >> 16;
-    uint32_t offset = address & 0xFFFF;
+    page_index = address >> 16;
+    offset = address & 0xFFFF;
 
+    // Fast path: aligned access within a valid page
     if (uint8_t* page = memoryMap[page_index]) {
+        // Warning: This assumes host is Little Endian (like PSX)
         return *reinterpret_cast<uint32_t*>(&page[offset]);
     }
 
+    // Fallback path
     return (uint32_t)read(address) | 
            ((uint32_t)read(address + 1) << 8) | 
            ((uint32_t)read(address + 2) << 16) | 
@@ -117,8 +116,8 @@ uint32_t Bus::read32(uint32_t address) {
 }
 
 void Bus::write(uint32_t address, uint8_t data) {
-    uint32_t page_index = address >> 16;
-    uint32_t offset = address & 0xFFFF;
+    page_index = address >> 16;
+    offset = address & 0xFFFF;
 
     if (uint8_t* page = memoryMap[page_index]) {
         page[offset] = data;
@@ -127,7 +126,22 @@ void Bus::write(uint32_t address, uint8_t data) {
 
     if (address >= 0x1F801000 && address < 0x1F802000) {
          io_ports[address & 0xFFF] = data;
-         // TODO: Trigger Hardware Side Effects here!
          return;
     }
+}
+
+void Bus::write32(uint32_t address, uint32_t data) {
+    page_index = address >> 16;
+    offset = address & 0xFFFF;
+
+    if (uint8_t* page = memoryMap[page_index]) {
+        *reinterpret_cast<uint32_t*>(&page[offset]) = data;
+        return;
+    }
+    
+    // Fallback: write byte by byte
+    write(address, data & 0xFF);
+    write(address + 1, (data >> 8) & 0xFF);
+    write(address + 2, (data >> 16) & 0xFF);
+    write(address + 3, (data >> 24) & 0xFF);
 }

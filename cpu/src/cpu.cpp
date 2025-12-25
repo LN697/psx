@@ -15,40 +15,11 @@ CPU::CPU(Bus* bus) : bus(bus) {
 CPU::~CPU() = default;
 
 void CPU::init() {
+    for (int i = 0; i < 33; ++i) {
+        (&registers.at)[i] = 0;
+    }
     registers.pc = 0xbfc00000;
-
-    registers.v0 = 0x0;
-    registers.v1 = 0x0;
-    registers.a0 = 0x0;
-    registers.a1 = 0x0;
-    registers.a2 = 0x0;
-    registers.a3 = 0x0;
-    registers.t0 = 0x0;
-    registers.t1 = 0x0;
-    registers.t2 = 0x0;
-    registers.t3 = 0x0;
-    registers.t4 = 0x0;
-    registers.t5 = 0x0;
-    registers.t6 = 0x0;
-    registers.t7 = 0x0;
-    registers.s0 = 0x0;
-    registers.s1 = 0x0;
-    registers.s2 = 0x0;
-    registers.s3 = 0x0;
-    registers.s4 = 0x0;
-    registers.s5 = 0x0;
-    registers.s6 = 0x0;
-    registers.s7 = 0x0;
-    registers.t8 = 0x0;
-    registers.t9 = 0x0;
-    registers.k0 = 0x0;
-    registers.k1 = 0x0;
-    registers.gp = 0x0;
-    registers.sp = 0x0;
-    registers.fp_s8 = 0x0;
-    registers.ra = 0x0;
-    registers.hi = 0x0;
-    registers.lo = 0x0;
+    next_pc = registers.pc + 4;
 }
 
 void CPU::step() {
@@ -59,20 +30,36 @@ void CPU::step() {
 
 void CPU::fetch() {
     instr = bus->read32(registers.pc);
-    registers.pc += 4;
+    registers.pc = next_pc;
+    next_pc += 4;
 }
 
 void CPU::decode() {
     pri_opcode = instr >> 26;
     sec_opcode = instr & 0x3f;
-
-    std::cout << "[CPU::Decode]   Primary Opcode: 0x" << std::hex << std::setfill('0') << std::setw(2) << (int)pri_opcode << std::endl;
-    std::cout << "[CPU::Decode] Secondary Opcode: 0x" << std::hex << std::setfill('0') << std::setw(2) << (int)sec_opcode << std::endl;
 }
 
 void CPU::execute() {
-
+    pri_table[pri_opcode](*this);
 }
+
+uint8_t CPU::read(uint32_t address) {
+    return bus->read(address);
+}
+
+void CPU::write(uint32_t address, uint8_t data) {
+    bus->write(address, data);
+}
+
+uint32_t CPU::read32(uint32_t address) {
+    return bus->read32(address);
+}
+
+void CPU::write32(uint32_t address, uint32_t data) {
+    bus->write32(address, data);
+}
+
+
 
 #ifdef DEBUG
 void CPU::dumpRegisters() {

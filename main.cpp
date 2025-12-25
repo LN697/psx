@@ -6,8 +6,14 @@
 
 #include <iostream>
 #include <chrono>
+#include <csignal>
+
 #include "bus.hpp"
 #include "cpu.hpp"
+#include "opcodes.hpp"
+
+volatile std::sig_atomic_t g_signal_received = 0;
+void signal_handler(int signal) { g_signal_received = signal; }
 
 int main(int argc, char* argv[]) {
 #ifdef PROFILE
@@ -31,11 +37,14 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    bus.dumpMemoryRegion(0xBFC00000, 0xff);
-
     cpu.init();
+    init_opcodes(cpu);
 
-    cpu.step();
+    while (g_signal_received == 0) {
+        cpu.step();
+    }
+    
+    cpu.bus->dumpMemoryRegion(cpu.registers.pc, 0x100);
 
     std::cout << "[Main] Stopping PS1 emulator..." << std::endl;
 
@@ -46,4 +55,4 @@ int main(int argc, char* argv[]) {
 #endif
 
     return 0;
-}
+}   

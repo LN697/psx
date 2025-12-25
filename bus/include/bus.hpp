@@ -37,4 +37,7 @@ class Bus {
         std::vector<uint8_t> biosROM;
         
         void mapRegion(std::vector<uint8_t>& storage, uint32_t startAddr, size_t size);
+
+        // Internal variables
+        uint32_t page_index, offset;
 };
