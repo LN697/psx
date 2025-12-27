@@ -20,24 +20,22 @@ void CPU::init() {
     // }
     // registers.pc = 0xbfc00000;
     next_pc = registers.pc + 4;
+    pending_loads.clear();
 }
 
 void CPU::step() {
     fetch();
     decode();
 
-    // Handle Load Delay Slot countdown: decrement early so that a load's value becomes visible "two" cycles after the load instruction (i.e. after one intervening instruction).
-    if (in_LDS) {
-        lds_countdown--;
-        if (lds_countdown <= 0) {
-            if (delayed_load_tar_reg != 0) {
-                uint32_t* regs = const_cast<uint32_t*>(&registers.zero);
-                regs[delayed_load_tar_reg] = delayed_load_val;
+    for (auto it = pending_loads.begin(); it != pending_loads.end(); ) {
+        it->countdown--;
+        if (it->countdown <= 0) {
+            if (it->target_reg != 0) {
+                registers.r[it->target_reg] = it->value;
             }
-            in_LDS = false;
-            delayed_load_tar_reg = 0;
-            delayed_load_val = 0;
-            lds_countdown = 0;
+            it = pending_loads.erase(it);
+        } else {
+            ++it;
         }
     }
 
@@ -84,13 +82,8 @@ void CPU::write32(uint32_t address, uint32_t data) {
 }
 
 void CPU::scheduleLoad(uint32_t reg, uint32_t value) {
-    in_LDS = true;
-    delayed_load_tar_reg = reg;
-    delayed_load_val = value;
-    lds_countdown = 2;
+    pending_loads.push_back({reg, value, 2});
 }
-
-
 
 #ifdef DEBUG
 void CPU::dumpRegisters() {

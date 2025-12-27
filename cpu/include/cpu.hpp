@@ -14,6 +14,12 @@
 class CPU;
 using InstructionHandler = void (*)(CPU&);
 
+struct LoadEntry {
+    uint32_t target_reg;
+    uint32_t value;
+    int countdown;
+};
+
 class CPU {
     public:
         CPU(Bus* bus);
@@ -54,9 +60,5 @@ class CPU {
         int cycles;
         uint32_t pri_opcode, sec_opcode;
 
-        // For Load Delay Slot (LDS)
-        bool in_LDS = false;
-        uint32_t delayed_load_tar_reg = 0;
-        uint32_t delayed_load_val = 0;
-        int lds_countdown = 0;
+        std::vector<LoadEntry> pending_loads;
 };

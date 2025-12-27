@@ -213,80 +213,34 @@ namespace Instructions {
         cpu.write32(get_reg(cpu, OP_RS(cpu.instr)) + sign_extend(OP_IMM16(cpu.instr)), get_reg(cpu, OP_RT(cpu.instr)));
     }
 
-    // 0x22: LWL rt, imm(rs)
+    // Corrected LWL (Little Endian)
     static void lwl(CPU& cpu) {
         uint32_t addr = get_reg(cpu, OP_RS(cpu.instr)) + sign_extend(OP_IMM16(cpu.instr));
-        uint32_t target_reg_idx = OP_RT(cpu.instr);
-        uint32_t original_rt_val = get_reg(cpu, target_reg_idx);
-
-        uint32_t aligned_addr = addr & ~0x3;
-        uint32_t offset = addr & 0x3; // 0, 1, 2, or 3
-
-        uint32_t mem_word = cpu.read32(aligned_addr);
-
-        uint32_t value_to_load = 0;
-        uint32_t preserved_mask = 0;
-
-        // Based on the offset, determine which bytes to load and which to preserve
-        switch (offset) {
-            case 0: // Aligned access, load all 4 bytes
-                value_to_load = mem_word;
-                preserved_mask = 0x00000000;
-                break;
-            case 1: // Load bytes from addr (byte 1) up to byte 3. Preserve byte 0 of register.
-                value_to_load = (mem_word >> 8) << 8; // Take bytes 1,2,3 from mem_word, shift to bits [8-31]
-                preserved_mask = 0x000000FF; // Preserve lowest 8 bits of original_rt_val
-                break;
-            case 2: // Load bytes from addr (byte 2) up to byte 3. Preserve bytes 0,1 of register.
-                value_to_load = (mem_word >> 16) << 16; // Take bytes 2,3 from mem_word, shift to bits [16-31]
-                preserved_mask = 0x0000FFFF; // Preserve lowest 16 bits of original_rt_val
-                break;
-            case 3: // Load byte from addr (byte 3). Preserve bytes 0,1,2 of register.
-                value_to_load = (mem_word >> 24) << 24; // Take byte 3 from mem_word, shift to bits [24-31]
-                preserved_mask = 0x00FFFFFF; // Preserve lowest 24 bits of original_rt_val
-                break;
-        }
-
-        uint32_t final_value = (original_rt_val & preserved_mask) | value_to_load;
-        cpu.scheduleLoad(target_reg_idx, final_value);
+        uint32_t shift = (addr & 3) * 8;
+        uint32_t mem_word = cpu.read32(addr & ~3);
+        uint32_t rt_val = get_reg(cpu, OP_RT(cpu.instr));
+    
+        // LWL at offset 0: (mem_word << 24). Mask reg bits 0..23.
+        // LWL at offset 3: (mem_word << 0).  Mask reg bits (none).
+        uint32_t value_to_load = mem_word << (24 - shift);
+        uint32_t mask = 0x00FFFFFF >> shift; 
+    
+        cpu.scheduleLoad(OP_RT(cpu.instr), (rt_val & mask) | value_to_load);
     }
-
-    // 0x26: LWR rt, imm(rs)
+    
+    // Corrected LWR (Little Endian)
     static void lwr(CPU& cpu) {
         uint32_t addr = get_reg(cpu, OP_RS(cpu.instr)) + sign_extend(OP_IMM16(cpu.instr));
-        uint32_t target_reg_idx = OP_RT(cpu.instr);
-        uint32_t original_rt_val = get_reg(cpu, target_reg_idx);
-
-        uint32_t aligned_addr = addr & ~0x3;
-        uint32_t offset = addr & 0x3; // 0, 1, 2, or 3
-
-        uint32_t mem_word = cpu.read32(aligned_addr); // Read the full word from memory
-
-        uint32_t value_to_load = 0;
-        uint32_t preserved_mask = 0;
-
-        // Based on the offset, determine which bytes to load and which to preserve
-        switch (offset) {
-            case 0: // Aligned access, load all 4 bytes
-                value_to_load = mem_word;
-                preserved_mask = 0x00000000;
-                break;
-            case 1: // Load bytes from byte 0 up to addr (byte 1). Preserve bytes 2,3 of register.
-                value_to_load = mem_word & 0x00FFFFFF; // Take bytes 0,1,2 from mem_word
-                preserved_mask = 0xFF000000; // Preserve highest 8 bits of original_rt_val
-                break;
-            case 2: // Load bytes from byte 0 up to addr (byte 2). Preserve bytes 3 of register.
-                value_to_load = mem_word & 0x0000FFFF; // Take bytes 0,1 from mem_word
-                preserved_mask = 0xFFFF0000; // Preserve highest 16 bits of original_rt_val
-                break;
-            case 3: // Load byte from byte 0 up to addr (byte 3). Preserve bytes 1,2,3 of register.
-                value_to_load = mem_word & 0x000000FF; // Take byte 0 from mem_word
-                preserved_mask = 0xFFFFFF00; // Preserve highest 24 bits of original_rt_val
-                break;
-        }
-
-        uint32_t final_value = (original_rt_val & preserved_mask) | value_to_load;
-        cpu.scheduleLoad(target_reg_idx, final_value);
+        uint32_t shift = (addr & 3) * 8;
+        uint32_t mem_word = cpu.read32(addr & ~3);
+        uint32_t rt_val = get_reg(cpu, OP_RT(cpu.instr));
+    
+        // LWR at offset 0: (mem_word >> 0).  Mask reg bits (none).
+        // LWR at offset 3: (mem_word >> 24). Mask reg bits 8..31.
+        uint32_t value_to_load = mem_word >> shift;
+        uint32_t mask = 0xFFFFFF00 << (24 - shift);
+    
+        cpu.scheduleLoad(OP_RT(cpu.instr), (rt_val & mask) | value_to_load);
     }
 
     // 0x2A: SWL rt, imm(rs)
@@ -336,22 +290,26 @@ namespace Instructions {
         uint32_t data_to_store_masked = 0;
         uint32_t mask_for_mem_write = 0;
 
+        // For SWR on Little Endian:
+        // addr points to the least significant byte written.
+        // Bytes are written from aligned_addr up to addr from the register's least significant part.
+        // Bytes in memory after addr are preserved.
         switch (offset) {
-            case 0: // Aligned access, write all 4 bytes
-                data_to_store_masked = source_reg_val;
-                mask_for_mem_write = 0xFFFFFFFF;
+            case 0: // addr = aligned_addr + 0. Store reg[0-7] into mem[0]. Preserve mem[1-3].
+                data_to_store_masked = source_reg_val & 0x000000FF; // Take byte 0 from source_reg_val
+                mask_for_mem_write = 0x000000FF; // Mask for byte 0 in memory
                 break;
-            case 1: // Write bytes from reg[0-23] to mem[0-2]. Preserve mem[3].
-                data_to_store_masked = source_reg_val & 0x00FFFFFF; // Take bytes 0,1,2 from source_reg_val
-                mask_for_mem_write = 0x00FFFFFF; // Mask for bytes 0,1,2 in memory
-                break;
-            case 2: // Write bytes from reg[0-15] to mem[0-1]. Preserve mem[2-3].
+            case 1: // addr = aligned_addr + 1. Store reg[0-15] into mem[0-1]. Preserve mem[2-3].
                 data_to_store_masked = source_reg_val & 0x0000FFFF; // Take bytes 0,1 from source_reg_val
                 mask_for_mem_write = 0x0000FFFF; // Mask for bytes 0,1 in memory
                 break;
-            case 3: // Write byte from reg[0-7] to mem[0]. Preserve mem[1-3].
-                data_to_store_masked = source_reg_val & 0x000000FF; // Take byte 0 from source_reg_val
-                mask_for_mem_write = 0x000000FF; // Mask for byte 0 in memory
+            case 2: // addr = aligned_addr + 2. Store reg[0-23] into mem[0-2]. Preserve mem[3].
+                data_to_store_masked = source_reg_val & 0x00FFFFFF; // Take bytes 0,1,2 from source_reg_val
+                mask_for_mem_write = 0x00FFFFFF; // Mask for bytes 0,1,2 in memory
+                break;
+            case 3: // addr = aligned_addr + 3. Store reg[0-31] into mem[0-3]. Full word write.
+                data_to_store_masked = source_reg_val;
+                mask_for_mem_write = 0xFFFFFFFF;
                 break;
         }
 
