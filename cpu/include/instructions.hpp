@@ -26,6 +26,8 @@ inline uint32_t sign_extend(uint16_t val) {
 
 namespace Instructions {
 
+    uint32_t imm, rs, rt;
+
     // --- Helper for Register Access ---
     // Handles the fact that register 0 is const/read-only.
     inline void set_reg(CPU& cpu, uint32_t index, uint32_t value) {
@@ -38,7 +40,7 @@ namespace Instructions {
         }
     }
 
-    // Read helper (just for symmetry, though direct access works fine)
+    // Read helper (just for symmetry, though direct access works fine). Inline shoud help with the performance.
     inline uint32_t get_reg(CPU& cpu, uint32_t index) {
         return (&cpu.registers.zero)[index];
     }
@@ -104,58 +106,257 @@ namespace Instructions {
         cpu.next_pc = (cpu.registers.pc & 0xF0000000) | target;
     }
 
-    // 0x08: ADDI
+    // 0x08: ADDI rt, rs, imm (INCOMPLETE)
     static void addi(CPU& cpu) {
-        uint32_t s = get_reg(cpu, OP_RS(cpu.instr));
-        uint32_t i = sign_extend(OP_IMM16(cpu.instr));
-        uint32_t res = s + i;
-        // TODO: Overflow trap
+        rs = get_reg(cpu, OP_RS(cpu.instr));
+        imm = sign_extend(OP_IMM16(cpu.instr));
+        uint32_t res = rs + imm;
+        // TODO: Signed overflow trap
         set_reg(cpu, OP_RT(cpu.instr), res);
     }
 
-    // 0x09: ADDIU
+    // 0x09: ADDIU rt, rs, imm
     static void addiu(CPU& cpu) {
-        uint32_t s = get_reg(cpu, OP_RS(cpu.instr));
-        uint32_t i = sign_extend(OP_IMM16(cpu.instr));
-        set_reg(cpu, OP_RT(cpu.instr), s + i);
+        rs = get_reg(cpu, OP_RS(cpu.instr));
+        imm = sign_extend(OP_IMM16(cpu.instr));
+        set_reg(cpu, OP_RT(cpu.instr), rs + imm);
     }
 
-    // 0x0C: ANDI
+    // 0x0A: SLTI rt, rs, imm
+    static void slti(CPU& cpu) {
+        rs = get_reg(cpu, OP_RS(cpu.instr));
+        imm = sign_extend(OP_IMM16(cpu.instr));
+        set_reg(cpu, OP_RT(cpu.instr), static_cast<int32_t>(rs) < static_cast<int32_t>(imm) ? 1 : 0);
+    }
+
+    // 0x0B: SLTIU rt, rs, imm
+    static void sltiu(CPU& cpu) {
+        rs = get_reg(cpu, OP_RS(cpu.instr));
+        imm = sign_extend(OP_IMM16(cpu.instr));
+        set_reg(cpu, OP_RT(cpu.instr), (rs < imm) ? 1 : 0);
+    }
+
+    // 0x0C: ANDI rt, rs, imm
     static void andi(CPU& cpu) {
-        uint32_t s = get_reg(cpu, OP_RS(cpu.instr));
-        uint32_t i = OP_IMM16(cpu.instr); // Zero extended
-        set_reg(cpu, OP_RT(cpu.instr), s & i);
+        rs = get_reg(cpu, OP_RS(cpu.instr));
+        imm = OP_IMM16(cpu.instr); // Zero extended
+        set_reg(cpu, OP_RT(cpu.instr), rs & imm);
     }
 
-    // 0x0D: ORI
+    // 0x0D: ORI rt, rs, imm
     static void ori(CPU& cpu) {
-        uint32_t s = get_reg(cpu, OP_RS(cpu.instr));
-        uint32_t i = OP_IMM16(cpu.instr); // Zero extended
-        set_reg(cpu, OP_RT(cpu.instr), s | i);
+        rs = get_reg(cpu, OP_RS(cpu.instr));
+        imm = OP_IMM16(cpu.instr); // Zero extended
+        set_reg(cpu, OP_RT(cpu.instr), rs | imm);
     }
 
-    // 0x0F: LUI
-    static void lui(CPU& cpu) {
-        uint32_t i = OP_IMM16(cpu.instr);
-        set_reg(cpu, OP_RT(cpu.instr), i << 16);
+    // 0x0E: XORI rt, rs, imm
+    static void xori(CPU& cpu) {
+        rs = get_reg(cpu, OP_RS(cpu.instr));
+        imm = OP_IMM16(cpu.instr); // Zero extended
+        set_reg(cpu, OP_RT(cpu.instr), rs ^ imm);
     }
 
-    // 0x23: LW
+    // 0x0F: LUI rt, imm (Load Upper Immediate)
+    static void lui(CPU& cpu) { // Do I need to implement the Load Delay Slot (LDS) here too?
+        imm = OP_IMM16(cpu.instr);
+        set_reg(cpu, OP_RT(cpu.instr), imm << 16);
+    }
+
+    // 0x20: LB rt, imm(rs)
+    static void lb(CPU& cpu) {
+        uint32_t addr = get_reg(cpu, OP_RS(cpu.instr)) + sign_extend(OP_IMM16(cpu.instr));
+        int8_t value = static_cast<int8_t>(cpu.read(addr));
+        cpu.scheduleLoad(OP_RT(cpu.instr), static_cast<uint32_t>(static_cast<int32_t>(value)));
+    }
+
+    // 0x24: LBU rt, imm(rs)
+    static void lbu(CPU& cpu) {
+        uint32_t addr = get_reg(cpu, OP_RS(cpu.instr)) + OP_IMM16(cpu.instr);
+        uint8_t value = cpu.read(addr);
+        cpu.scheduleLoad(OP_RT(cpu.instr), static_cast<uint32_t>(value));
+    }
+
+    // 0x21: LH rt, imm(rs)
+    static void lh(CPU& cpu) {
+        uint32_t addr = get_reg(cpu, OP_RS(cpu.instr)) + sign_extend(OP_IMM16(cpu.instr));
+        int16_t value = static_cast<int16_t>(cpu.read16(addr));
+        cpu.scheduleLoad(OP_RT(cpu.instr), static_cast<uint32_t>(static_cast<int32_t>(value)));
+    }
+
+    // 0x25: LHU rt, imm(rs)
+    static void lhu(CPU& cpu) {
+        uint32_t addr = get_reg(cpu, OP_RS(cpu.instr)) + OP_IMM16(cpu.instr);
+        uint32_t value = cpu.read16(addr) & 0xFFFF;
+        cpu.scheduleLoad(OP_RT(cpu.instr), value);
+    }
+
+    // 0x23: LW rt, imm(rs)
     static void lw(CPU& cpu) {
-        uint32_t base = get_reg(cpu, OP_RS(cpu.instr));
-        uint32_t offset = sign_extend(OP_IMM16(cpu.instr));
-        uint32_t addr = base + offset;
-        uint32_t val = cpu.read32(addr);
-        set_reg(cpu, OP_RT(cpu.instr), val);
+        uint32_t addr = get_reg(cpu, OP_RS(cpu.instr)) + sign_extend(OP_IMM16(cpu.instr));
+        uint32_t value = cpu.read32(addr);
+        cpu.scheduleLoad(OP_RT(cpu.instr), value);
     }
 
-    // 0x2B: SW
+    // 0x28: SB rt, imm(rs)
+    static void sb(CPU& cpu) {
+        cpu.write(get_reg(cpu, OP_RS(cpu.instr)) + sign_extend(OP_IMM16(cpu.instr)), get_reg(cpu, OP_RT(cpu.instr)));
+    }
+
+    // 0x29: SH rt, imm(rs)
+    static void sh(CPU& cpu) {
+        cpu.write16(get_reg(cpu, OP_RS(cpu.instr)) + sign_extend(OP_IMM16(cpu.instr)), get_reg(cpu, OP_RT(cpu.instr)));
+    }
+
+    // 0x2B: SW rt, imm(rs)
     static void sw(CPU& cpu) {
-        uint32_t base = get_reg(cpu, OP_RS(cpu.instr));
-        uint32_t offset = sign_extend(OP_IMM16(cpu.instr));
-        uint32_t addr = base + offset;
-        uint32_t val = get_reg(cpu, OP_RT(cpu.instr));
-        cpu.write32(addr, val);
+        cpu.write32(get_reg(cpu, OP_RS(cpu.instr)) + sign_extend(OP_IMM16(cpu.instr)), get_reg(cpu, OP_RT(cpu.instr)));
+    }
+
+    // 0x22: LWL rt, imm(rs)
+    static void lwl(CPU& cpu) {
+        uint32_t addr = get_reg(cpu, OP_RS(cpu.instr)) + sign_extend(OP_IMM16(cpu.instr));
+        uint32_t target_reg_idx = OP_RT(cpu.instr);
+        uint32_t original_rt_val = get_reg(cpu, target_reg_idx);
+
+        uint32_t aligned_addr = addr & ~0x3;
+        uint32_t offset = addr & 0x3; // 0, 1, 2, or 3
+
+        uint32_t mem_word = cpu.read32(aligned_addr);
+
+        uint32_t value_to_load = 0;
+        uint32_t preserved_mask = 0;
+
+        // Based on the offset, determine which bytes to load and which to preserve
+        switch (offset) {
+            case 0: // Aligned access, load all 4 bytes
+                value_to_load = mem_word;
+                preserved_mask = 0x00000000;
+                break;
+            case 1: // Load bytes from addr (byte 1) up to byte 3. Preserve byte 0 of register.
+                value_to_load = (mem_word >> 8) << 8; // Take bytes 1,2,3 from mem_word, shift to bits [8-31]
+                preserved_mask = 0x000000FF; // Preserve lowest 8 bits of original_rt_val
+                break;
+            case 2: // Load bytes from addr (byte 2) up to byte 3. Preserve bytes 0,1 of register.
+                value_to_load = (mem_word >> 16) << 16; // Take bytes 2,3 from mem_word, shift to bits [16-31]
+                preserved_mask = 0x0000FFFF; // Preserve lowest 16 bits of original_rt_val
+                break;
+            case 3: // Load byte from addr (byte 3). Preserve bytes 0,1,2 of register.
+                value_to_load = (mem_word >> 24) << 24; // Take byte 3 from mem_word, shift to bits [24-31]
+                preserved_mask = 0x00FFFFFF; // Preserve lowest 24 bits of original_rt_val
+                break;
+        }
+
+        uint32_t final_value = (original_rt_val & preserved_mask) | value_to_load;
+        cpu.scheduleLoad(target_reg_idx, final_value);
+    }
+
+    // 0x26: LWR rt, imm(rs)
+    static void lwr(CPU& cpu) {
+        uint32_t addr = get_reg(cpu, OP_RS(cpu.instr)) + sign_extend(OP_IMM16(cpu.instr));
+        uint32_t target_reg_idx = OP_RT(cpu.instr);
+        uint32_t original_rt_val = get_reg(cpu, target_reg_idx);
+
+        uint32_t aligned_addr = addr & ~0x3;
+        uint32_t offset = addr & 0x3; // 0, 1, 2, or 3
+
+        uint32_t mem_word = cpu.read32(aligned_addr); // Read the full word from memory
+
+        uint32_t value_to_load = 0;
+        uint32_t preserved_mask = 0;
+
+        // Based on the offset, determine which bytes to load and which to preserve
+        switch (offset) {
+            case 0: // Aligned access, load all 4 bytes
+                value_to_load = mem_word;
+                preserved_mask = 0x00000000;
+                break;
+            case 1: // Load bytes from byte 0 up to addr (byte 1). Preserve bytes 2,3 of register.
+                value_to_load = mem_word & 0x00FFFFFF; // Take bytes 0,1,2 from mem_word
+                preserved_mask = 0xFF000000; // Preserve highest 8 bits of original_rt_val
+                break;
+            case 2: // Load bytes from byte 0 up to addr (byte 2). Preserve bytes 3 of register.
+                value_to_load = mem_word & 0x0000FFFF; // Take bytes 0,1 from mem_word
+                preserved_mask = 0xFFFF0000; // Preserve highest 16 bits of original_rt_val
+                break;
+            case 3: // Load byte from byte 0 up to addr (byte 3). Preserve bytes 1,2,3 of register.
+                value_to_load = mem_word & 0x000000FF; // Take byte 0 from mem_word
+                preserved_mask = 0xFFFFFF00; // Preserve highest 24 bits of original_rt_val
+                break;
+        }
+
+        uint32_t final_value = (original_rt_val & preserved_mask) | value_to_load;
+        cpu.scheduleLoad(target_reg_idx, final_value);
+    }
+
+    // 0x2A: SWL rt, imm(rs)
+    static void swl(CPU& cpu) {
+        uint32_t addr = get_reg(cpu, OP_RS(cpu.instr)) + sign_extend(OP_IMM16(cpu.instr));
+        uint32_t source_reg_val = get_reg(cpu, OP_RT(cpu.instr));
+
+        uint32_t aligned_addr = addr & ~0x3;
+        uint32_t offset = addr & 0x3; // 0, 1, 2, or 3
+
+        uint32_t current_mem_word = cpu.read32(aligned_addr);
+        uint32_t data_to_store_masked = 0;
+        uint32_t mask_for_mem_write = 0;
+
+        switch (offset) {
+            case 0: // Aligned access, write all 4 bytes
+                data_to_store_masked = source_reg_val;
+                mask_for_mem_write = 0xFFFFFFFF;
+                break;
+            case 1: // Write bytes from reg[8-31] to mem[1-3]. Preserve mem[0].
+                data_to_store_masked = (source_reg_val >> 8) << 8; // Take bytes 1,2,3 from source_reg_val, shift to mem positions 1,2,3
+                mask_for_mem_write = 0xFFFFFF00; // Mask for bytes 1,2,3 in memory
+                break;
+            case 2: // Write bytes from reg[16-31] to mem[2-3]. Preserve mem[0-1].
+                data_to_store_masked = (source_reg_val >> 16) << 16; // Take bytes 2,3 from source_reg_val, shift to mem positions 2,3
+                mask_for_mem_write = 0xFFFF0000; // Mask for bytes 2,3 in memory
+                break;
+            case 3: // Write byte from reg[24-31] to mem[3]. Preserve mem[0-2].
+                data_to_store_masked = (source_reg_val >> 24) << 24; // Take byte 3 from source_reg_val, shift to mem position 3
+                mask_for_mem_write = 0xFF000000; // Mask for byte 3 in memory
+                break;
+        }
+
+        uint32_t final_mem_value = (current_mem_word & ~mask_for_mem_write) | (data_to_store_masked & mask_for_mem_write);
+        cpu.write32(aligned_addr, final_mem_value);
+    }
+
+    // 0x2E: SWR rt, imm(rs)
+    static void swr(CPU& cpu) {
+        uint32_t addr = get_reg(cpu, OP_RS(cpu.instr)) + sign_extend(OP_IMM16(cpu.instr));
+        uint32_t source_reg_val = get_reg(cpu, OP_RT(cpu.instr));
+
+        uint32_t aligned_addr = addr & ~0x3;
+        uint32_t offset = addr & 0x3; // 0, 1, 2, or 3
+
+        uint32_t current_mem_word = cpu.read32(aligned_addr);
+        uint32_t data_to_store_masked = 0;
+        uint32_t mask_for_mem_write = 0;
+
+        switch (offset) {
+            case 0: // Aligned access, write all 4 bytes
+                data_to_store_masked = source_reg_val;
+                mask_for_mem_write = 0xFFFFFFFF;
+                break;
+            case 1: // Write bytes from reg[0-23] to mem[0-2]. Preserve mem[3].
+                data_to_store_masked = source_reg_val & 0x00FFFFFF; // Take bytes 0,1,2 from source_reg_val
+                mask_for_mem_write = 0x00FFFFFF; // Mask for bytes 0,1,2 in memory
+                break;
+            case 2: // Write bytes from reg[0-15] to mem[0-1]. Preserve mem[2-3].
+                data_to_store_masked = source_reg_val & 0x0000FFFF; // Take bytes 0,1 from source_reg_val
+                mask_for_mem_write = 0x0000FFFF; // Mask for bytes 0,1 in memory
+                break;
+            case 3: // Write byte from reg[0-7] to mem[0]. Preserve mem[1-3].
+                data_to_store_masked = source_reg_val & 0x000000FF; // Take byte 0 from source_reg_val
+                mask_for_mem_write = 0x000000FF; // Mask for byte 0 in memory
+                break;
+        }
+
+        uint32_t final_mem_value = (current_mem_word & ~mask_for_mem_write) | (data_to_store_masked & mask_for_mem_write);
+        cpu.write32(aligned_addr, final_mem_value);
     }
 
     // 0x10: COP0

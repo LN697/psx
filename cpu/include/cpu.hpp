@@ -24,9 +24,14 @@ class CPU {
 
         uint8_t read(uint32_t address);
         void write(uint32_t address, uint8_t data);
+        
+        uint16_t read16(uint32_t address);
+        void write16(uint32_t address, uint16_t data);
 
         uint32_t read32(uint32_t address);
         void write32(uint32_t address, uint32_t data);
+
+        void scheduleLoad(uint32_t reg, uint32_t value);
 
 #ifdef DEBUG
         void dumpRegisters();
@@ -48,4 +53,10 @@ class CPU {
     private:
         int cycles;
         uint32_t pri_opcode, sec_opcode;
+
+        // For Load Delay Slot (LDS)
+        bool in_LDS = false;
+        uint32_t delayed_load_tar_reg = 0;
+        uint32_t delayed_load_val = 0;
+        int lds_countdown = 0;
 };

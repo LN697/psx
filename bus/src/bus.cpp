@@ -98,6 +98,20 @@ uint8_t Bus::read(uint32_t address) {
     return 0x00; 
 }
 
+uint32_t Bus::read16(uint32_t address) {
+    page_index = address >> 16;
+    offset = address & 0xFFFF;
+
+    // Fast path: aligned access within a valid page
+    if (uint8_t* page = memoryMap[page_index]) {
+        // Warning: This assumes host is Little Endian (like PSX)
+        return *reinterpret_cast<uint16_t*>(&page[offset]);
+    }
+
+    // Fallback path
+    return (uint16_t)read(address) | ((uint16_t)read(address + 1) << 8);
+}
+
 uint32_t Bus::read32(uint32_t address) {
     page_index = address >> 16;
     offset = address & 0xFFFF;
@@ -109,10 +123,7 @@ uint32_t Bus::read32(uint32_t address) {
     }
 
     // Fallback path
-    return (uint32_t)read(address) | 
-           ((uint32_t)read(address + 1) << 8) | 
-           ((uint32_t)read(address + 2) << 16) | 
-           ((uint32_t)read(address + 3) << 24);
+    return (uint32_t)read(address) | ((uint32_t)read(address + 1) << 8) | ((uint32_t)read(address + 2) << 16) | ((uint32_t)read(address + 3) << 24);
 }
 
 void Bus::write(uint32_t address, uint8_t data) {
@@ -128,6 +139,20 @@ void Bus::write(uint32_t address, uint8_t data) {
          io_ports[address & 0xFFF] = data;
          return;
     }
+}
+
+void Bus::write16(uint32_t address, uint16_t data) {
+    page_index = address >> 16;
+    offset = address & 0xFFFF;
+
+    if (uint8_t* page = memoryMap[page_index]) {
+        *reinterpret_cast<uint16_t*>(&page[offset]) = data;
+        return;
+    }
+    
+    // Fallback: write byte by byte
+    write(address, data & 0xFF);
+    write(address + 1, (data >> 8) & 0xFF);
 }
 
 void Bus::write32(uint32_t address, uint32_t data) {

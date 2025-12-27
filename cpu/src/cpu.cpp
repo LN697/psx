@@ -25,6 +25,22 @@ void CPU::init() {
 void CPU::step() {
     fetch();
     decode();
+
+    // Handle Load Delay Slot countdown: decrement early so that a load's value becomes visible "two" cycles after the load instruction (i.e. after one intervening instruction).
+    if (in_LDS) {
+        lds_countdown--;
+        if (lds_countdown <= 0) {
+            if (delayed_load_tar_reg != 0) {
+                uint32_t* regs = const_cast<uint32_t*>(&registers.zero);
+                regs[delayed_load_tar_reg] = delayed_load_val;
+            }
+            in_LDS = false;
+            delayed_load_tar_reg = 0;
+            delayed_load_val = 0;
+            lds_countdown = 0;
+        }
+    }
+
     execute();
 }
 
@@ -51,12 +67,27 @@ void CPU::write(uint32_t address, uint8_t data) {
     bus->write(address, data);
 }
 
+uint16_t CPU::read16(uint32_t address) {
+    return bus->read16(address);
+}
+
+void CPU::write16(uint32_t address, uint16_t data) {
+    bus->write16(address, data);
+}
+
 uint32_t CPU::read32(uint32_t address) {
     return bus->read32(address);
 }
 
 void CPU::write32(uint32_t address, uint32_t data) {
     bus->write32(address, data);
+}
+
+void CPU::scheduleLoad(uint32_t reg, uint32_t value) {
+    in_LDS = true;
+    delayed_load_tar_reg = reg;
+    delayed_load_val = value;
+    lds_countdown = 2;
 }
 
 
